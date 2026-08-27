@@ -33,6 +33,18 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--config", default="configs/base.yaml", type=Path)
     prepare.add_argument("--raw-dir", type=Path)
     prepare.add_argument("--output-dir", type=Path)
+
+    train = subparsers.add_parser("train", help="Tune, calibrate, and save the champion model.")
+    train.add_argument("--config", default="configs/base.yaml", type=Path)
+    train.add_argument("--processed-dir", type=Path)
+    train.add_argument("--output-dir", type=Path)
+    train.add_argument("--trials", type=int)
+    train.add_argument(
+        "--quick",
+        action="store_true",
+        help="Use one short trial for pipeline verification rather than model selection.",
+    )
+    train.add_argument("--no-mlflow", action="store_true")
     return parser
 
 
@@ -57,6 +69,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "test_rows": result.test_rows,
                 },
                 indent=2,
+            )
+        )
+        return 0
+    if args.command == "train":
+        from fraud_monitor.modeling import train_from_prepared
+
+        config = load_config(args.config)
+        result = train_from_prepared(
+            config,
+            processed_dir=args.processed_dir,
+            output_dir=args.output_dir,
+            trials=1 if args.quick else args.trials,
+            max_estimators=80 if args.quick else 2_000,
+            early_stopping_rounds=10 if args.quick else 100,
+            n_jobs=1 if args.quick else -1,
+            enable_mlflow=not args.no_mlflow,
+        )
+        print(
+            json.dumps(
+                {
+                    "bundle_path": str(result.bundle_path),
+                    "summary_path": str(result.summary_path),
+                    "budget_path": str(result.budget_path),
+                    "model_version": result.model_version,
+                    "data_version": result.data_version,
+                    "acceptance_metrics": result.acceptance_metrics,
+                },
+                indent=2,
+                default=_path_default,
             )
         )
         return 0

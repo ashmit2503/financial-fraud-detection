@@ -34,3 +34,12 @@ uv run fraud-monitor prepare
 The command verifies schemas, join cardinality, targets, and temporal ordering before writing
 `data/processed/train.parquet`, `data/processed/test.parquet`, and a reproducibility manifest.
 Raw and processed row-level data are never committed.
+
+Train the temporal LightGBM champion, calibrator, and fixed review thresholds with:
+
+```bash
+uv run fraud-monitor train
+```
+
+For a fast end-to-end pipeline check, use `uv run fraud-monitor train --quick --no-mlflow`.
+Private model artifacts and local MLflow runs are written below `artifacts/private/` and ignored.
