@@ -1,0 +1,18 @@
+{
+  "data_version": "d-81c4e7b2",
+  "description": "Aggregate-only portfolio demo; not IEEE-CIS results.",
+  "files": [
+    "batch_metrics.parquet",
+    "feature_drift.parquet",
+    "investigations.parquet",
+    "performance_metrics.parquet",
+    "recommendations.parquet",
+    "segment_metrics.parquet",
+    "shap_summary.parquet"
+  ],
+  "generated_at_utc": "2026-01-01T00:00:00+00:00",
+  "manifest_version": 1,
+  "model_version": "m-6f9d2c1a",
+  "source": "deterministic_controlled_scenarios",
+  "synthetic": true
+}

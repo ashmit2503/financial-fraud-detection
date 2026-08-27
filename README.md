@@ -62,3 +62,22 @@ uv run fraud-monitor retrain-eval --bundle artifacts/private/model/model_bundle.
 
 The command records paired PR-AUC and recall uncertainty plus eligible segment recall checks. It
 updates the recommendation artifact but never replaces or deploys the champion automatically.
+
+Create a deterministic aggregate-only public demo with:
+
+```bash
+uv run fraud-monitor build-demo --synthetic
+```
+
+To export real replay results instead, omit `--synthetic` and optionally pass `--source-dir` and
+`--review-budget`. The exporter uses an explicit column allow-list and never copies transactions.
+
+Launch the aggregate-only dashboard with:
+
+```bash
+uv sync --extra app
+uv run streamlit run streamlit_app.py
+```
+
+The top navigation separates overview, mature-label performance, drift, and diagnosis views. The
+committed demo artifacts are synthetic controlled scenarios and are labeled as such in the app.

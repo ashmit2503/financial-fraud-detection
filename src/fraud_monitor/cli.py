@@ -63,6 +63,15 @@ def build_parser() -> argparse.ArgumentParser:
     retrain.add_argument("--output-dir", type=Path)
     retrain.add_argument("--bootstrap-iterations", type=int)
     retrain.add_argument("--n-jobs", type=int, default=-1)
+
+    demo = subparsers.add_parser(
+        "build-demo", help="Export public-safe aggregate dashboard artifacts."
+    )
+    demo.add_argument("--config", default="configs/base.yaml", type=Path)
+    demo.add_argument("--source-dir", type=Path)
+    demo.add_argument("--output-dir", type=Path)
+    demo.add_argument("--review-budget", type=Path)
+    demo.add_argument("--synthetic", action="store_true")
     return parser
 
 
@@ -116,6 +125,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             bootstrap_iterations=args.bootstrap_iterations,
             n_jobs=args.n_jobs,
         )
+        print(json.dumps(asdict(result), indent=2, default=_path_default))
+        return 0
+    if args.command == "build-demo":
+        from fraud_monitor.demo import export_demo_artifacts, generate_synthetic_demo
+
+        config = load_config(args.config)
+        output_dir = args.output_dir or config.paths.demo_dir
+        if args.synthetic:
+            result = generate_synthetic_demo(output_dir)
+        else:
+            source_dir = args.source_dir or (config.paths.artifact_dir / "private" / "monitoring")
+            result = export_demo_artifacts(
+                source_dir,
+                output_dir,
+                review_budget_path=args.review_budget,
+            )
         print(json.dumps(asdict(result), indent=2, default=_path_default))
         return 0
     if args.command == "train":
