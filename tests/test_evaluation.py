@@ -4,6 +4,7 @@ from sklearn.metrics import average_precision_score
 
 from fraud_monitor.evaluation import (
     binary_classification_metrics,
+    calibration_reliability_table,
     expected_calibration_error,
     review_budget_table,
     stratified_bootstrap_interval,
@@ -72,3 +73,13 @@ def test_stratified_bootstrap_is_reproducible() -> None:
 
     assert first == second
     assert first.estimate == pytest.approx(1.0)
+
+
+def test_reliability_table_preserves_rows_and_probability_order() -> None:
+    target = np.array([0, 0, 1, 0, 1, 1])
+    probability = np.array([0.02, 0.08, 0.20, 0.30, 0.70, 0.95])
+
+    table = calibration_reliability_table(target, probability, bins=3)
+
+    assert table["rows"].sum() == len(target)
+    assert table["mean_probability"].is_monotonic_increasing

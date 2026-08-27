@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,7 +13,11 @@ import polars as pl
 from sklearn.metrics import average_precision_score, recall_score
 
 from fraud_monitor.config import ProjectConfig
-from fraud_monitor.evaluation import binary_classification_metrics, threshold_for_review_rate
+from fraud_monitor.evaluation import (
+    binary_classification_metrics,
+    paired_stratified_difference,
+    threshold_for_review_rate,
+)
 from fraud_monitor.features import CausalFeatureBuilder, FeaturePreprocessor
 from fraud_monitor.modeling import (
     _fit_lgbm,
@@ -26,13 +29,6 @@ from fraud_monitor.splits import PERIOD_COLUMN, PRODUCTION_BATCH_COLUMN
 
 
 @dataclass(frozen=True)
-class DifferenceInterval:
-    estimate: float
-    lower: float
-    upper: float
-
-
-@dataclass(frozen=True)
 class RetrainingEvaluationResult:
     summary_path: Path
     segment_comparison_path: Path
@@ -40,46 +36,6 @@ class RetrainingEvaluationResult:
     training_rows: int
     calibration_batches: tuple[int, ...]
     evaluation_batches: tuple[int, ...]
-
-
-def paired_stratified_difference(
-    target: np.ndarray,
-    champion_scores: np.ndarray,
-    challenger_scores: np.ndarray,
-    metric: Callable[[np.ndarray, np.ndarray], float],
-    *,
-    iterations: int = 500,
-    confidence: float = 0.95,
-    random_seed: int = 42,
-) -> DifferenceInterval:
-    """Bootstrap a challenger-minus-champion metric difference on paired rows."""
-
-    y = np.asarray(target, dtype=int)
-    champion = np.asarray(champion_scores, dtype=float)
-    challenger = np.asarray(challenger_scores, dtype=float)
-    if not (y.shape == champion.shape == challenger.shape) or y.size == 0:
-        raise ValueError("Paired evaluation arrays must be non-empty and aligned.")
-    if np.unique(y).size < 2:
-        raise ValueError("Paired evaluation requires both target classes.")
-    if iterations < 1 or not 0 < confidence < 1:
-        raise ValueError("Iterations must be positive and confidence must be in (0, 1).")
-    rng = np.random.default_rng(random_seed)
-    class_positions = [np.flatnonzero(y == value) for value in (0, 1)]
-    differences = np.empty(iterations, dtype=float)
-    for iteration in range(iterations):
-        sampled = np.concatenate(
-            [rng.choice(rows, size=len(rows), replace=True) for rows in class_positions]
-        )
-        rng.shuffle(sampled)
-        differences[iteration] = metric(y[sampled], challenger[sampled]) - metric(
-            y[sampled], champion[sampled]
-        )
-    alpha = 1 - confidence
-    return DifferenceInterval(
-        estimate=float(metric(y, challenger) - metric(y, champion)),
-        lower=float(np.quantile(differences, alpha / 2)),
-        upper=float(np.quantile(differences, 1 - alpha / 2)),
-    )
 
 
 def _select_windows(

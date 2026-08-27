@@ -28,6 +28,46 @@ class MetricInterval:
     upper: float
 
 
+def paired_stratified_difference(
+    y_true: np.ndarray,
+    baseline_probabilities: np.ndarray,
+    candidate_probabilities: np.ndarray,
+    metric: Callable[[np.ndarray, np.ndarray], float],
+    *,
+    iterations: int = 500,
+    confidence: float = 0.95,
+    random_seed: int = 42,
+) -> MetricInterval:
+    """Bootstrap a candidate-minus-baseline metric difference on paired rows."""
+
+    y = np.asarray(y_true, dtype=int)
+    baseline = np.asarray(baseline_probabilities, dtype=float)
+    candidate = np.asarray(candidate_probabilities, dtype=float)
+    if not (y.shape == baseline.shape == candidate.shape) or y.size == 0:
+        raise ValueError("Paired evaluation arrays must be non-empty and aligned.")
+    if np.unique(y).size < 2:
+        raise ValueError("Paired evaluation requires both target classes.")
+    if iterations < 1 or not 0.0 < confidence < 1.0:
+        raise ValueError("Iterations must be positive and confidence must be in (0, 1).")
+    rng = np.random.default_rng(random_seed)
+    class_indices = [np.flatnonzero(y == value) for value in (0, 1)]
+    values = np.empty(iterations, dtype=float)
+    for iteration in range(iterations):
+        sampled = np.concatenate(
+            [rng.choice(indices, size=indices.size, replace=True) for indices in class_indices]
+        )
+        rng.shuffle(sampled)
+        values[iteration] = metric(y[sampled], candidate[sampled]) - metric(
+            y[sampled], baseline[sampled]
+        )
+    alpha = 1.0 - confidence
+    return MetricInterval(
+        estimate=float(metric(y, candidate) - metric(y, baseline)),
+        lower=float(np.nanquantile(values, alpha / 2)),
+        upper=float(np.nanquantile(values, 1 - alpha / 2)),
+    )
+
+
 def threshold_for_review_rate(scores: np.ndarray, review_rate: float) -> float:
     """Return a fixed threshold selected from the historical score distribution."""
 
@@ -72,6 +112,45 @@ def expected_calibration_error(
         if mask.any():
             error += mask.mean() * abs(y[mask].mean() - probability[mask].mean())
     return float(error)
+
+
+def calibration_reliability_table(
+    y_true: np.ndarray,
+    probabilities: np.ndarray,
+    *,
+    bins: int = 10,
+) -> pd.DataFrame:
+    """Return equal-frequency calibration bins for a reliability diagram."""
+
+    y = np.asarray(y_true, dtype=int)
+    probability = np.asarray(probabilities, dtype=float)
+    if y.size == 0 or y.shape != probability.shape:
+        raise ValueError("Labels and probabilities must be non-empty arrays with equal shape.")
+    if bins < 2:
+        raise ValueError("At least two calibration bins are required.")
+    if not np.isfinite(probability).all() or np.any((probability < 0) | (probability > 1)):
+        raise ValueError("Probabilities must be finite values in [0, 1].")
+    assignments = pd.qcut(
+        pd.Series(probability),
+        q=min(bins, len(probability)),
+        labels=False,
+        duplicates="drop",
+    )
+    frame = pd.DataFrame({"target": y, "probability": probability, "bin": assignments})
+    result = (
+        frame.groupby("bin", observed=True, as_index=False)
+        .agg(
+            rows=("target", "size"),
+            mean_probability=("probability", "mean"),
+            observed_fraud_rate=("target", "mean"),
+            minimum_probability=("probability", "min"),
+            maximum_probability=("probability", "max"),
+        )
+        .sort_values("bin")
+        .reset_index(drop=True)
+    )
+    result["bin"] = np.arange(1, len(result) + 1)
+    return result
 
 
 def calibration_slope_intercept(

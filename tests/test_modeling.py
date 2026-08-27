@@ -46,6 +46,9 @@ def test_quick_temporal_training_writes_loadable_bundle(tmp_path) -> None:
     summary = json.loads(result.summary_path.read_text(encoding="utf-8"))
     assert bundle.model_version == result.model_version
     assert bundle.default_threshold == bundle.thresholds[0.02]
+    assert bundle.temporal_cutoffs["acceptance_cutoff"] > 0
     assert summary["acceptance_metrics"]["rows"] > 0
     assert summary["tuning"]["trials"] == 1
     assert result.budget_path.is_file()
+    assert result.reliability_path.is_file()
+    assert "pr_auc_improvement_over_logistic" in summary["acceptance_intervals"]

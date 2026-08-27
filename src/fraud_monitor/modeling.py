@@ -19,14 +19,17 @@ import polars as pl
 from scipy.special import logit
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, brier_score_loss
+from sklearn.metrics import average_precision_score, brier_score_loss, recall_score
 
 from fraud_monitor.baselines import fit_baselines
 from fraud_monitor.config import ProjectConfig
 from fraud_monitor.evaluation import (
     binary_classification_metrics,
+    calibration_reliability_table,
     expected_calibration_error,
+    paired_stratified_difference,
     review_budget_table,
+    stratified_bootstrap_interval,
     thresholds_for_review_rates,
 )
 from fraud_monitor.features import CausalFeatureBuilder, FeaturePreprocessor
@@ -75,6 +78,7 @@ class ModelBundle:
     default_review_rate: float
     model_version: str
     data_version: str
+    temporal_cutoffs: dict[str, int | float]
     created_at_utc: str
     training_parameters: dict[str, Any]
 
@@ -112,6 +116,7 @@ class TrainingResult:
     bundle_path: Path
     summary_path: Path
     budget_path: Path
+    reliability_path: Path
     model_version: str
     data_version: str
     acceptance_metrics: dict[str, float | int]
@@ -341,6 +346,7 @@ def train_from_prepared(
     early_stopping_rounds: int = 100,
     n_jobs: int = -1,
     enable_mlflow: bool = True,
+    bootstrap_iterations: int | None = None,
 ) -> TrainingResult:
     """Train, calibrate, evaluate, version, and save the deployment bundle."""
 
@@ -429,6 +435,44 @@ def train_from_prepared(
         name: float(average_precision_score(acceptance_target, probability))
         for name, probability in baseline_probabilities.items()
     }
+    iterations = bootstrap_iterations or config.monitoring.bootstrap_iterations
+    acceptance_intervals = {
+        "pr_auc": asdict(
+            stratified_bootstrap_interval(
+                acceptance_target,
+                acceptance_probability,
+                average_precision_score,
+                iterations=iterations,
+                random_seed=config.random_seed,
+            )
+        ),
+        "recall_at_default_capacity": asdict(
+            stratified_bootstrap_interval(
+                acceptance_target,
+                acceptance_probability,
+                lambda y, probability: float(
+                    recall_score(
+                        y,
+                        probability >= thresholds[config.model.default_review_rate],
+                        zero_division=0,
+                    )
+                ),
+                iterations=iterations,
+                random_seed=config.random_seed,
+            )
+        ),
+        "pr_auc_improvement_over_logistic": asdict(
+            paired_stratified_difference(
+                acceptance_target,
+                baseline_probabilities["logistic"],
+                acceptance_probability,
+                average_precision_score,
+                iterations=iterations,
+                random_seed=config.random_seed,
+            )
+        ),
+    }
+    reliability_table = calibration_reliability_table(acceptance_target, acceptance_probability)
 
     data_version = _data_version(manifest)
     model_version = _model_version(data_version, tuning)
@@ -442,6 +486,7 @@ def train_from_prepared(
         default_review_rate=config.model.default_review_rate,
         model_version=model_version,
         data_version=data_version,
+        temporal_cutoffs=manifest["temporal_boundaries"],
         created_at_utc=created_at,
         training_parameters={**tuning.parameters, "n_estimators": tuning.final_estimators},
     )
@@ -450,8 +495,10 @@ def train_from_prepared(
     bundle_path = destination / "model_bundle.joblib"
     summary_path = destination / "training_summary.json"
     budget_path = destination / "acceptance_review_budgets.parquet"
+    reliability_path = destination / "acceptance_reliability.parquet"
     joblib.dump(bundle, bundle_path, compress=3)
     budget_table.to_parquet(budget_path, index=False)
+    reliability_table.to_parquet(reliability_path, index=False)
     summary = {
         "model_version": model_version,
         "data_version": data_version,
@@ -461,6 +508,7 @@ def train_from_prepared(
         "selected_calibrator": calibrator.method,
         "thresholds": thresholds,
         "acceptance_metrics": acceptance_metrics,
+        "acceptance_intervals": acceptance_intervals,
         "baseline_pr_auc": baseline_pr_auc,
         "feature_count": len(preprocessor.schema_.feature_columns),
         "native_categorical_count": len(preprocessor.schema_.native_categorical_columns),
@@ -484,11 +532,13 @@ def train_from_prepared(
                 if isinstance(value, (int, float)) and np.isfinite(value):
                     mlflow.log_metric(f"acceptance_{name}", float(value))
             mlflow.log_artifact(str(summary_path))
+            mlflow.log_artifact(str(reliability_path))
 
     return TrainingResult(
         bundle_path=bundle_path,
         summary_path=summary_path,
         budget_path=budget_path,
+        reliability_path=reliability_path,
         model_version=model_version,
         data_version=data_version,
         acceptance_metrics=acceptance_metrics,

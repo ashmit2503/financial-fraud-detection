@@ -45,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use one short trial for pipeline verification rather than model selection.",
     )
     train.add_argument("--no-mlflow", action="store_true")
+    train.add_argument("--bootstrap-iterations", type=int)
 
     replay = subparsers.add_parser("replay", help="Replay production and build monitoring tables.")
     replay.add_argument("--config", default="configs/base.yaml", type=Path)
@@ -156,6 +157,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             early_stopping_rounds=10 if args.quick else 100,
             n_jobs=1 if args.quick else -1,
             enable_mlflow=not args.no_mlflow,
+            bootstrap_iterations=(
+                args.bootstrap_iterations
+                if args.bootstrap_iterations is not None
+                else 100
+                if args.quick
+                else None
+            ),
         )
         print(
             json.dumps(
@@ -163,6 +171,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "bundle_path": str(result.bundle_path),
                     "summary_path": str(result.summary_path),
                     "budget_path": str(result.budget_path),
+                    "reliability_path": str(result.reliability_path),
                     "model_version": result.model_version,
                     "data_version": result.data_version,
                     "acceptance_metrics": result.acceptance_metrics,
