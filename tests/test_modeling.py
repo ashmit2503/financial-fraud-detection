@@ -49,4 +49,3 @@ def test_quick_temporal_training_writes_loadable_bundle(tmp_path) -> None:
     assert summary["acceptance_metrics"]["rows"] > 0
     assert summary["tuning"]["trials"] == 1
     assert result.budget_path.is_file()
-

@@ -140,9 +140,7 @@ def fit_probability_calibrators(
         CalibrationCandidate(
             method=calibrator.method,
             brier_score=float(brier_score_loss(y, calibrator.predict(raw))),
-            expected_calibration_error=expected_calibration_error(
-                y, calibrator.predict(raw)
-            ),
+            expected_calibration_error=expected_calibration_error(y, calibrator.predict(raw)),
         )
         for calibrator in calibrators
     )
@@ -169,9 +167,7 @@ def _prepare_temporal_folds(
     folds: list[FoldData] = []
     target_column = config.data.target_column
     for fold in expanding_development_folds(config.split.development_blocks):
-        train = development[
-            development[DEVELOPMENT_BLOCK_COLUMN].isin(fold.train_blocks)
-        ].copy()
+        train = development[development[DEVELOPMENT_BLOCK_COLUMN].isin(fold.train_blocks)].copy()
         validation = development[
             development[DEVELOPMENT_BLOCK_COLUMN] == fold.validation_block
         ].copy()
@@ -210,9 +206,7 @@ def _trial_parameters(trial: optuna.Trial) -> dict[str, Any]:
         "colsample_bytree": trial.suggest_float("colsample_bytree", 0.70, 1.0),
         "reg_alpha": trial.suggest_float("reg_alpha", 1e-4, 5.0, log=True),
         "reg_lambda": trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
-        "class_weight_mode": trial.suggest_categorical(
-            "class_weight_mode", ["none", "balanced"]
-        ),
+        "class_weight_mode": trial.suggest_categorical("class_weight_mode", ["none", "balanced"]),
     }
 
 
@@ -413,9 +407,7 @@ def train_from_prepared(
         raw_calibration, calibration_target
     )
     calibrated_calibration = calibrator.predict(raw_calibration)
-    thresholds = thresholds_for_review_rates(
-        calibrated_calibration, config.model.review_rates
-    )
+    thresholds = thresholds_for_review_rates(calibrated_calibration, config.model.review_rates)
     raw_acceptance = model.predict_proba(acceptance_features)[:, 1]
     acceptance_probability = calibrator.predict(raw_acceptance)
     acceptance_metrics = binary_classification_metrics(

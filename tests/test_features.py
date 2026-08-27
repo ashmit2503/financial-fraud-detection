@@ -64,9 +64,7 @@ def test_stateless_features_add_time_amount_and_missingness() -> None:
     transformed = add_stateless_features(frame)
 
     assert transformed["amount_log1p"].iloc[0] == pytest.approx(np.log1p(10.0))
-    assert {"hour_sin", "day_of_week_cos", "missing_count_identity"} <= set(
-        transformed.columns
-    )
+    assert {"hour_sin", "day_of_week_cos", "missing_count_identity"} <= set(transformed.columns)
     assert transformed["identity_available"].dtype == "int8"
 
 

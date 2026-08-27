@@ -97,4 +97,3 @@ def fit_baselines(frame: pd.DataFrame, target: np.ndarray) -> BaselineModels:
     dummy.fit(features, target)
     logistic.fit(features, target)
     return BaselineModels(dummy=dummy, logistic=logistic, feature_columns=feature_columns)
-

@@ -33,4 +33,3 @@ def test_split_requires_complete_production_range() -> None:
             batch_seconds=604_800,
             label_delay_batches=2,
         )
-

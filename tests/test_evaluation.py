@@ -72,4 +72,3 @@ def test_stratified_bootstrap_is_reproducible() -> None:
 
     assert first == second
     assert first.estimate == pytest.approx(1.0)
-

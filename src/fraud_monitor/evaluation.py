@@ -214,4 +214,3 @@ def stratified_bootstrap_interval(
         lower=float(np.nanquantile(values, alpha / 2)),
         upper=float(np.nanquantile(values, 1 - alpha / 2)),
     )
-

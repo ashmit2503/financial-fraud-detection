@@ -201,16 +201,13 @@ class PerformanceMonitor:
             metric: float(metrics[metric]) for metric in (*LOWER_IS_WORSE, *HIGHER_IS_WORSE)
         }
         monitored_values["fraud_prevalence_shift"] = abs(
-            float(metrics["fraud_prevalence"])
-            - float(self.reference_metrics["fraud_prevalence"])
+            float(metrics["fraud_prevalence"]) - float(self.reference_metrics["fraud_prevalence"])
         )
         records = []
         for metric, value in monitored_values.items():
             limit = self.limits[metric]
             reference_value = (
-                0.0
-                if metric == "fraud_prevalence_shift"
-                else float(self.reference_metrics[metric])
+                0.0 if metric == "fraud_prevalence_shift" else float(self.reference_metrics[metric])
             )
             records.append(
                 PerformanceRecord(

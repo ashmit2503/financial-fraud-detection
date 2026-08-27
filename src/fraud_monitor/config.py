@@ -156,12 +156,9 @@ def load_config(path: str | Path = "configs/base.yaml") -> ProjectConfig:
         model=ModelConfig(
             review_rates=tuple(float(value) for value in _required(model, "review_rates")),
             default_review_rate=float(_required(model, "default_review_rate")),
-            categorical_cardinality_limit=int(
-                _required(model, "categorical_cardinality_limit")
-            ),
+            categorical_cardinality_limit=int(_required(model, "categorical_cardinality_limit")),
             missingness_drop_threshold=float(_required(model, "missingness_drop_threshold")),
             optuna_trials=int(_required(model, "optuna_trials")),
         ),
         monitoring=MonitoringConfig(**monitoring),
     )
-

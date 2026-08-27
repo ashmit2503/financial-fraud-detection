@@ -390,9 +390,7 @@ class ReferenceDriftMonitor:
         warning_features = sum(
             severity in {"warning", "critical"} for severity in feature_severity.values()
         )
-        critical_features = sum(
-            severity == "critical" for severity in feature_severity.values()
-        )
+        critical_features = sum(severity == "critical" for severity in feature_severity.values())
         global_severity: Severity = "healthy"
         if critical_features > self.critical_feature_limit or prediction_severity == "critical":
             global_severity = "critical"

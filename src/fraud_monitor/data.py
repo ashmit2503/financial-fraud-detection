@@ -37,11 +37,7 @@ class PreparedDataset:
 def normalize_identity_columns(frame: pl.DataFrame) -> pl.DataFrame:
     """Normalize Kaggle test identity names such as ``id-12`` to ``id_12``."""
 
-    mapping = {
-        name: name.replace("-", "_")
-        for name in frame.columns
-        if name.startswith("id-")
-    }
+    mapping = {name: name.replace("-", "_") for name in frame.columns if name.startswith("id-")}
     resulting_names = [mapping.get(name, name) for name in frame.columns]
     if len(set(resulting_names)) != len(resulting_names):
         raise DataValidationError("Identity column normalization creates duplicate names.")
@@ -240,4 +236,3 @@ def prepare_dataset(
         train_rows=train.height,
         test_rows=test.height,
     )
-

@@ -37,8 +37,11 @@ def make_ieee_cis_tables(rows: int = 240, seed: int = 42) -> SyntheticTables:
     amount = rng.lognormal(mean=4.2, sigma=0.7, size=rows).round(2)
     card1 = rng.integers(1000, 1030, size=rows)
     addr1 = rng.choice([100, 200, 300, np.nan], size=rows, p=[0.35, 0.3, 0.25, 0.1])
-    fraud_logit = -3.6 + 1.4 * (product == "C") + 0.8 * (amount > 150) + 0.5 * (
-        transaction_dt > np.quantile(transaction_dt, 0.7)
+    fraud_logit = (
+        -3.6
+        + 1.4 * (product == "C")
+        + 0.8 * (amount > 150)
+        + 0.5 * (transaction_dt > np.quantile(transaction_dt, 0.7))
     )
     fraud_probability = 1.0 / (1.0 + np.exp(-fraud_logit))
     target = rng.binomial(1, fraud_probability)

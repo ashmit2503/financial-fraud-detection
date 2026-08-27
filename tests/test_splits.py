@@ -32,9 +32,12 @@ def test_temporal_partitioning_uses_elapsed_time_and_builds_all_blocks() -> None
         .get_column(DEVELOPMENT_BLOCK_COLUMN)
         .unique()
     ) == {1, 2, 3, 4, 5}
-    assert partitioned.filter(pl.col(PERIOD_COLUMN) == "production").get_column(
-        PRODUCTION_BATCH_COLUMN
-    ).min() == 1
+    assert (
+        partitioned.filter(pl.col(PERIOD_COLUMN) == "production")
+        .get_column(PRODUCTION_BATCH_COLUMN)
+        .min()
+        == 1
+    )
     assert boundaries.minimum_time == partitioned["TransactionDT"].min()
 
 
@@ -54,4 +57,3 @@ def test_shadow_data_must_follow_training() -> None:
 
     with pytest.raises(TemporalSplitError, match="strictly after"):
         validate_shadow_period(train, overlapping)
-

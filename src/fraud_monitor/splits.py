@@ -104,13 +104,10 @@ def assign_temporal_partitions(
     acceptance_cutoff = minimum + split.acceptance_end * span
     production_mask = periods == "production"
     calculated_batches = (
-        np.floor((times[production_mask] - acceptance_cutoff) / split.batch_seconds).astype(int)
-        + 1
+        np.floor((times[production_mask] - acceptance_cutoff) / split.batch_seconds).astype(int) + 1
     )
     production_batches: list[int | None] = [None] * ordered.height
-    for row_index, batch in zip(
-        np.flatnonzero(production_mask), calculated_batches, strict=True
-    ):
+    for row_index, batch in zip(np.flatnonzero(production_mask), calculated_batches, strict=True):
         production_batches[int(row_index)] = int(batch)
 
     result = ordered.with_columns(

@@ -21,7 +21,9 @@ def test_baselines_fit_and_score_unseen_future_categories() -> None:
     assert set(predictions) == {"dummy", "logistic"}
     assert all(len(values) == len(validation) for values in predictions.values())
     assert all(((values >= 0) & (values <= 1)).all() for values in predictions.values())
-    assert average_precision_score(
-        tables.train_transaction["isFraud"].iloc[160:], predictions["logistic"]
-    ) >= 0.0
-
+    assert (
+        average_precision_score(
+            tables.train_transaction["isFraud"].iloc[160:], predictions["logistic"]
+        )
+        >= 0.0
+    )

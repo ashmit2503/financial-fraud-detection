@@ -77,4 +77,3 @@ def test_prepare_dataset_writes_validated_parquet_and_manifest(tmp_path) -> None
     assert manifest["manifest_version"] == 1
     assert manifest["train"]["rows"] == 240
     assert len(manifest["source_files"]["train_transaction.csv"]["sha256"]) == 64
-

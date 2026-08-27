@@ -146,9 +146,7 @@ class CausalFeatureBuilder:
 
         required = {self.time_column, self.amount_column, *self.entity_keys.values()}
         flattened_required = {
-            value
-            for item in required
-            for value in (item if isinstance(item, tuple) else (item,))
+            value for item in required for value in (item if isinstance(item, tuple) else (item,))
         }
         missing = flattened_required - set(frame.columns)
         if missing:
@@ -266,9 +264,10 @@ class FeaturePreprocessor:
 
         for column in candidates:
             missing_fraction = float(frame[column].isna().mean())
-            if missing_fraction > self.missingness_drop_threshold or frame[column].nunique(
-                dropna=False
-            ) <= 1:
+            if (
+                missing_fraction > self.missingness_drop_threshold
+                or frame[column].nunique(dropna=False) <= 1
+            ):
                 dropped.append(column)
                 continue
             if not self._is_categorical(column):
@@ -320,7 +319,9 @@ class FeaturePreprocessor:
             if column in frequency_set:
                 normalized = self._normalized_category(frame[column])
                 result[f"{column}__frequency"] = (
-                    normalized.map(self.schema_.frequency_maps[column]).fillna(0.0).astype("float32")
+                    normalized.map(self.schema_.frequency_maps[column])
+                    .fillna(0.0)
+                    .astype("float32")
                 )
             elif column in native_set:
                 normalized = self._normalized_category(frame[column])
