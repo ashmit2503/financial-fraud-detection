@@ -45,6 +45,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use one short trial for pipeline verification rather than model selection.",
     )
     train.add_argument("--no-mlflow", action="store_true")
+
+    replay = subparsers.add_parser("replay", help="Replay production and build monitoring tables.")
+    replay.add_argument("--config", default="configs/base.yaml", type=Path)
+    replay.add_argument("--processed-dir", type=Path)
+    replay.add_argument("--bundle", required=True, type=Path)
+    replay.add_argument("--output-dir", type=Path)
+    replay.add_argument("--bootstrap-iterations", type=int)
     return parser
 
 
@@ -71,6 +78,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 indent=2,
             )
         )
+        return 0
+    if args.command == "replay":
+        from fraud_monitor.replay import run_replay
+
+        config = load_config(args.config)
+        result = run_replay(
+            config,
+            bundle_path=args.bundle,
+            processed_dir=args.processed_dir,
+            output_dir=args.output_dir,
+            bootstrap_iterations=args.bootstrap_iterations,
+        )
+        print(json.dumps(asdict(result), indent=2, default=_path_default))
         return 0
     if args.command == "train":
         from fraud_monitor.modeling import train_from_prepared

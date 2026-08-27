@@ -43,3 +43,12 @@ uv run fraud-monitor train
 
 For a fast end-to-end pipeline check, use `uv run fraud-monitor train --quick --no-mlflow`.
 Private model artifacts and local MLflow runs are written below `artifacts/private/` and ignored.
+
+Replay weekly production and the later unlabeled test stream with:
+
+```bash
+uv run fraud-monitor replay --bundle artifacts/private/model/model_bundle.joblib
+```
+
+The replay writes aggregate batch, feature-drift, performance, segment, and action tables below
+`artifacts/private/monitoring/`. The final two production batches remain label-pending by design.
