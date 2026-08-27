@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,13 @@ class SyntheticTables:
     train_identity: pd.DataFrame
     test_transaction: pd.DataFrame
     test_identity: pd.DataFrame
+
+    def write_csvs(self, directory: Path) -> None:
+        directory.mkdir(parents=True, exist_ok=True)
+        self.train_transaction.to_csv(directory / "train_transaction.csv", index=False)
+        self.train_identity.to_csv(directory / "train_identity.csv", index=False)
+        self.test_transaction.to_csv(directory / "test_transaction.csv", index=False)
+        self.test_identity.to_csv(directory / "test_identity.csv", index=False)
 
 
 def make_ieee_cis_tables(rows: int = 240, seed: int = 42) -> SyntheticTables:
@@ -85,4 +93,3 @@ def make_ieee_cis_tables(rows: int = 240, seed: int = 42) -> SyntheticTables:
         test_transaction=test_transaction,
         test_identity=test_identity,
     )
-

@@ -18,7 +18,19 @@ uv run fraud-monitor show-config
 uv run pytest
 ```
 
-The raw Kaggle files belong in `data/raw/` and are never committed. Detailed data instructions,
-pipeline commands, architecture, results, and monitoring interpretation will be added as each
-capability becomes usable.
+Download the four competition files into `data/raw/`:
 
+- `train_transaction.csv`
+- `train_identity.csv`
+- `test_transaction.csv`
+- `test_identity.csv`
+
+Prepare validated, chronologically partitioned Parquet tables with:
+
+```bash
+uv run fraud-monitor prepare
+```
+
+The command verifies schemas, join cardinality, targets, and temporal ordering before writing
+`data/processed/train.parquet`, `data/processed/test.parquet`, and a reproducibility manifest.
+Raw and processed row-level data are never committed.
