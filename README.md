@@ -50,5 +50,6 @@ Replay weekly production and the later unlabeled test stream with:
 uv run fraud-monitor replay --bundle artifacts/private/model/model_bundle.joblib
 ```
 
-The replay writes aggregate batch, feature-drift, performance, segment, and action tables below
-`artifacts/private/monitoring/`. The final two production batches remain label-pending by design.
+The replay writes aggregate batch, feature-drift, performance, segment, TreeSHAP, investigation,
+and action tables below `artifacts/private/monitoring/`. The final two production batches remain
+label-pending by design.

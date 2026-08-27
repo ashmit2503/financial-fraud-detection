@@ -14,6 +14,11 @@ import pandas as pd
 import polars as pl
 
 from fraud_monitor.config import ProjectConfig
+from fraud_monitor.diagnostics import (
+    build_investigation_records,
+    compare_shap_summaries,
+    tree_shap_summary,
+)
 from fraud_monitor.drift import (
     ReferenceDriftMonitor,
     numeric_jensen_shannon,
@@ -51,6 +56,8 @@ class ReplayResult:
     performance_metrics_path: Path
     segment_metrics_path: Path
     recommendations_path: Path
+    shap_summary_path: Path
+    investigations_path: Path
     manifest_path: Path
     production_batches: int
     shadow_batches: int
@@ -196,11 +203,18 @@ def run_replay(
         random_seed=config.monitoring.random_seed,
     )
     segment_profiler = SegmentProfiler.fit(reference_engineered)
+    reference_shap = tree_shap_summary(
+        bundle.model,
+        reference_features,
+        target=reference_target,
+        random_seed=config.monitoring.random_seed,
+    )
 
     batch_records: list[dict[str, Any]] = []
     drift_records: list[dict[str, Any]] = []
     performance_records: list[dict[str, Any]] = []
     segment_records: list[dict[str, Any]] = []
+    shap_records: list[dict[str, Any]] = []
     production = train[train[PERIOD_COLUMN] == "production"].copy()
     maximum_production_batch = int(production[PRODUCTION_BATCH_COLUMN].max())
     previous_segment_frame: pd.DataFrame | None = None
@@ -210,6 +224,18 @@ def run_replay(
         batch_id = f"production_{batch_number:03d}"
         engineered, model_features, scores = _engineer_and_score(bundle, builder, raw_batch)
         feature_records, drift_summary = drift_monitor.compare(model_features, scores)
+        current_shap = tree_shap_summary(
+            bundle.model,
+            model_features,
+            target=engineered[config.data.target_column].to_numpy(dtype=int),
+            random_seed=config.monitoring.random_seed,
+        )
+        shap_records.extend(
+            {"batch_id": batch_id, "stream": "production", **record}
+            for record in compare_shap_summaries(reference_shap, current_shap).to_dict(
+                orient="records"
+            )
+        )
         labels_mature = batch_number + config.split.label_delay_batches <= maximum_production_batch
         label_status = "mature" if labels_mature else "pending"
         perf_records, perf_summary = performance_monitor.compare(
@@ -277,6 +303,17 @@ def run_replay(
         batch_id = f"shadow_{batch_number:03d}"
         engineered, model_features, scores = _engineer_and_score(bundle, builder, raw_batch)
         feature_records, drift_summary = drift_monitor.compare(model_features, scores)
+        current_shap = tree_shap_summary(
+            bundle.model,
+            model_features,
+            random_seed=config.monitoring.random_seed,
+        )
+        shap_records.extend(
+            {"batch_id": batch_id, "stream": "shadow", **record}
+            for record in compare_shap_summaries(reference_shap, current_shap).to_dict(
+                orient="records"
+            )
+        )
         base = _base_batch_record(
             batch_id=batch_id,
             stream="shadow",
@@ -319,6 +356,17 @@ def run_replay(
     ].copy()
     recommendations["challenger_evaluated"] = False
     recommendations["retrain_recommended"] = False
+    feature_drift = pd.DataFrame(drift_records)
+    performance_metrics = pd.DataFrame(performance_records)
+    segment_metrics = pd.DataFrame(segment_records)
+    shap_summaries = pd.DataFrame(shap_records)
+    investigations = build_investigation_records(
+        all_batch_metrics,
+        feature_drift,
+        performance_metrics,
+        shap_summaries,
+        segment_metrics,
+    )
 
     destination.mkdir(parents=True, exist_ok=True)
     batch_metrics_path = destination / "batch_metrics.parquet"
@@ -326,13 +374,17 @@ def run_replay(
     performance_metrics_path = destination / "performance_metrics.parquet"
     segment_metrics_path = destination / "segment_metrics.parquet"
     recommendations_path = destination / "recommendations.parquet"
+    shap_summary_path = destination / "shap_summary.parquet"
+    investigations_path = destination / "investigations.parquet"
     manifest_path = destination / "monitoring_manifest.json"
     profile_path = destination / "reference_profiles.joblib"
     all_batch_metrics.to_parquet(batch_metrics_path, index=False)
-    pd.DataFrame(drift_records).to_parquet(feature_drift_path, index=False)
-    pd.DataFrame(performance_records).to_parquet(performance_metrics_path, index=False)
-    pd.DataFrame(segment_records).to_parquet(segment_metrics_path, index=False)
+    feature_drift.to_parquet(feature_drift_path, index=False)
+    performance_metrics.to_parquet(performance_metrics_path, index=False)
+    segment_metrics.to_parquet(segment_metrics_path, index=False)
     recommendations.to_parquet(recommendations_path, index=False)
+    shap_summaries.to_parquet(shap_summary_path, index=False)
+    investigations.to_parquet(investigations_path, index=False)
     joblib.dump(
         {
             "drift_monitor": drift_monitor,
@@ -359,6 +411,8 @@ def run_replay(
             "performance_metrics": performance_metrics_path.name,
             "segment_metrics": segment_metrics_path.name,
             "recommendations": recommendations_path.name,
+            "shap_summary": shap_summary_path.name,
+            "investigations": investigations_path.name,
         },
     }
     manifest_path.write_text(
@@ -370,6 +424,8 @@ def run_replay(
         performance_metrics_path=performance_metrics_path,
         segment_metrics_path=segment_metrics_path,
         recommendations_path=recommendations_path,
+        shap_summary_path=shap_summary_path,
+        investigations_path=investigations_path,
         manifest_path=manifest_path,
         production_batches=manifest["production_batches"],
         shadow_batches=manifest["shadow_batches"],

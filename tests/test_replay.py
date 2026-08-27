@@ -62,6 +62,8 @@ def test_replay_builds_labeled_and_shadow_monitoring_artifacts(tmp_path) -> None
     assert replay.feature_drift_path.is_file()
     assert replay.performance_metrics_path.is_file()
     assert replay.segment_metrics_path.is_file()
+    assert replay.shap_summary_path.is_file()
+    assert replay.investigations_path.is_file()
     manifest = json.loads(replay.manifest_path.read_text(encoding="utf-8"))
     assert manifest["model_version"] == training.model_version
     assert "TransactionID" not in pd.read_parquet(replay.feature_drift_path).columns
