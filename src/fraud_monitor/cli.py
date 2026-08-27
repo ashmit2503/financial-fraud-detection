@@ -52,6 +52,17 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--bundle", required=True, type=Path)
     replay.add_argument("--output-dir", type=Path)
     replay.add_argument("--bootstrap-iterations", type=int)
+
+    retrain = subparsers.add_parser(
+        "retrain-eval", help="Train and evaluate a leakage-safe manual challenger."
+    )
+    retrain.add_argument("--config", default="configs/base.yaml", type=Path)
+    retrain.add_argument("--processed-dir", type=Path)
+    retrain.add_argument("--monitoring-dir", type=Path)
+    retrain.add_argument("--bundle", required=True, type=Path)
+    retrain.add_argument("--output-dir", type=Path)
+    retrain.add_argument("--bootstrap-iterations", type=int)
+    retrain.add_argument("--n-jobs", type=int, default=-1)
     return parser
 
 
@@ -89,6 +100,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             processed_dir=args.processed_dir,
             output_dir=args.output_dir,
             bootstrap_iterations=args.bootstrap_iterations,
+        )
+        print(json.dumps(asdict(result), indent=2, default=_path_default))
+        return 0
+    if args.command == "retrain-eval":
+        from fraud_monitor.retraining import run_retraining_evaluation
+
+        config = load_config(args.config)
+        result = run_retraining_evaluation(
+            config,
+            bundle_path=args.bundle,
+            processed_dir=args.processed_dir,
+            monitoring_dir=args.monitoring_dir,
+            output_dir=args.output_dir,
+            bootstrap_iterations=args.bootstrap_iterations,
+            n_jobs=args.n_jobs,
         )
         print(json.dumps(asdict(result), indent=2, default=_path_default))
         return 0

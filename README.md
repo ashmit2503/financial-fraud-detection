@@ -53,3 +53,12 @@ uv run fraud-monitor replay --bundle artifacts/private/model/model_bundle.joblib
 The replay writes aggregate batch, feature-drift, performance, segment, TreeSHAP, investigation,
 and action tables below `artifacts/private/monitoring/`. The final two production batches remain
 label-pending by design.
+
+Manually evaluate a challenger on untouched, later mature batches with:
+
+```bash
+uv run fraud-monitor retrain-eval --bundle artifacts/private/model/model_bundle.joblib
+```
+
+The command records paired PR-AUC and recall uncertainty plus eligible segment recall checks. It
+updates the recommendation artifact but never replaces or deploys the champion automatically.

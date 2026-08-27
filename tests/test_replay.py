@@ -7,6 +7,7 @@ from fraud_monitor.config import load_config
 from fraud_monitor.data import prepare_dataset
 from fraud_monitor.modeling import train_from_prepared
 from fraud_monitor.replay import run_replay
+from fraud_monitor.retraining import run_retraining_evaluation
 from tests.factories import make_ieee_cis_tables
 
 
@@ -67,3 +68,17 @@ def test_replay_builds_labeled_and_shadow_monitoring_artifacts(tmp_path) -> None
     manifest = json.loads(replay.manifest_path.read_text(encoding="utf-8"))
     assert manifest["model_version"] == training.model_version
     assert "TransactionID" not in pd.read_parquet(replay.feature_drift_path).columns
+
+    retraining = run_retraining_evaluation(
+        config,
+        bundle_path=training.bundle_path,
+        processed_dir=processed_dir,
+        monitoring_dir=monitoring_dir,
+        output_dir=tmp_path / "retraining",
+        bootstrap_iterations=20,
+        n_jobs=1,
+    )
+    assert retraining.summary_path.is_file()
+    assert max(retraining.calibration_batches) < min(retraining.evaluation_batches)
+    recommendations = pd.read_parquet(replay.recommendations_path)
+    assert recommendations["challenger_evaluated"].any()
