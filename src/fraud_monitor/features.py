@@ -291,8 +291,9 @@ class FeaturePreprocessor:
             f"{column}__frequency" if column in frequency_encoded else column
             for column in output_columns
         ]
+        active_inputs = tuple(column for column in candidates if column not in dropped)
         self.schema_ = FeatureSchema(
-            input_columns=tuple(frame.columns),
+            input_columns=active_inputs,
             feature_columns=tuple(output_columns),
             dropped_columns=tuple(dropped),
             native_categorical_columns=tuple(native),
@@ -314,7 +315,7 @@ class FeaturePreprocessor:
         native_set = set(self.schema_.native_categorical_columns)
         dropped_set = set(self.schema_.dropped_columns)
         for column in self.schema_.input_columns:
-            if column in MODEL_EXCLUDED_COLUMNS or column in dropped_set:
+            if column in dropped_set:
                 continue
             if column in frequency_set:
                 normalized = self._normalized_category(frame[column])

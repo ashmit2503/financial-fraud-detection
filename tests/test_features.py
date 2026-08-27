@@ -97,3 +97,17 @@ def test_preprocessor_drops_constant_and_extremely_sparse_features() -> None:
 
     assert "constant" not in transformed.columns
     assert "sparse" not in transformed.columns
+
+
+def test_preprocessor_does_not_require_excluded_labels_or_replay_metadata() -> None:
+    train = add_stateless_features(_causal_rows())
+    train["isFraud"] = [0, 0, 1, 0]
+    train["dataset_period"] = "development"
+    preprocessor = FeaturePreprocessor().fit(train)
+    unlabeled = train.drop(columns=["isFraud", "dataset_period"])
+
+    transformed = preprocessor.transform(unlabeled)
+
+    assert len(transformed) == len(unlabeled)
+    assert "isFraud" not in preprocessor.schema_.input_columns
+    assert "dataset_period" not in preprocessor.schema_.input_columns
