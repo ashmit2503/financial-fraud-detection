@@ -1,0 +1,45 @@
+project:
+  name: ieee-cis-fraud-monitor
+  random_seed: 42
+
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  artifact_dir: artifacts
+  demo_dir: artifacts/demo
+
+data:
+  transaction_id_column: TransactionID
+  time_column: TransactionDT
+  target_column: isFraud
+  expected_files:
+    - train_transaction.csv
+    - train_identity.csv
+    - test_transaction.csv
+    - test_identity.csv
+
+split:
+  development_end: 0.50
+  calibration_end: 0.60
+  acceptance_end: 0.70
+  production_end: 1.00
+  development_blocks: 5
+  batch_seconds: 604800
+  label_delay_batches: 2
+
+model:
+  review_rates: [0.005, 0.01, 0.02, 0.05]
+  default_review_rate: 0.02
+  categorical_cardinality_limit: 500
+  missingness_drop_threshold: 0.995
+  optuna_trials: 20
+
+monitoring:
+  warning_quantile: 0.95
+  critical_quantile: 0.99
+  bootstrap_iterations: 500
+  random_seed: 42
+  minimum_segment_positive: 30
+  minimum_segment_negative: 30
+  top_shap_features: 25
+
