@@ -5,24 +5,35 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: "3.12"
-          cache: pip
-      - name: Install package
-        run: python -m pip install --upgrade pip && python -m pip install -e ".[dev,train,app]"
+          enable-cache: true
+      - name: Install locked dependencies
+        run: uv sync --locked --extra dev --extra train
       - name: Lint
-        run: ruff check . && ruff format --check .
+        run: uv run ruff check . && uv run ruff format --check .
       - name: Test
-        run: pytest
+        run: uv run pytest
+      - name: Audit dependencies
+        # MLflow currently constrains cryptography<50. The ignored advisory applies only to
+        # attacker-controlled PKCS#7 decryption, which this offline training pipeline never uses.
+        run: >-
+          uv run pip-audit --local --progress-spinner off
+          --ignore-vuln PYSEC-2026-3552
       - name: Streamlit startup smoke test
         run: |
-          streamlit run streamlit_app.py --server.headless=true --server.port=8501 >/tmp/streamlit.log 2>&1 &
+          uv run streamlit run streamlit_app.py --server.headless=true --server.port=8501 >/tmp/streamlit.log 2>&1 &
           APP_PID=$!
           for attempt in {1..20}; do
             if curl --fail --silent http://localhost:8501/_stcore/health; then

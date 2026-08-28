@@ -45,7 +45,7 @@ Production labels mature after two seven-day batches. Until then, performance is
 Python 3.12 and [uv](https://docs.astral.sh/uv/) are the reference environment.
 
 ```bash
-uv sync --extra dev --extra train --extra app
+uv sync --extra dev --extra train
 uv run fraud-monitor show-config
 uv run pytest
 uv run streamlit run streamlit_app.py
@@ -170,8 +170,9 @@ docs/                Architecture notes, experiment handoff, and interview notes
 ## Public deployment
 
 For Streamlit Community Cloud, connect the public GitHub repository, choose `streamlit_app.py` as
-the entry point, and use Python 3.12. `requirements.txt` installs the package's app dependencies.
-The app needs no secrets, raw transactions, model binary, or live ML service.
+the entry point, and use Python 3.12. Community Cloud detects `uv.lock`, and the dashboard
+dependencies are part of the locked default environment. The app needs no secrets, raw
+transactions, model binary, or live ML service.
 
 ## Reproducibility and data hygiene
 

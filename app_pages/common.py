@@ -12,7 +12,7 @@ from fraud_monitor.dashboard_data import DashboardData, load_dashboard_data
 DEFAULT_DEMO_DIR = Path(__file__).resolve().parent.parent / "artifacts" / "demo"
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=4)
 def _cached_load(directory: str) -> DashboardData:
     return load_dashboard_data(directory)
 
