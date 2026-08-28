@@ -93,6 +93,34 @@ def test_segment_metrics_pool_previous_batch_before_suppressing() -> None:
     assert product.iloc[0]["recall"] == 1.0
 
 
+def test_suppressed_segment_metrics_preserve_the_output_schema() -> None:
+    reference = pd.DataFrame(
+        {
+            "ProductCD": ["W", "C"],
+            "P_emaildomain": ["a.com", "b.com"],
+            "addr1": [100, 200],
+        }
+    )
+    current = SegmentProfiler.fit(reference).add_segments(
+        reference.assign(
+            isFraud=[0, 1],
+            fraud_probability=[0.1, 0.9],
+            TransactionAmt=[10.0, 20.0],
+        )
+    )
+
+    metrics = compute_segment_metrics(
+        current,
+        threshold=0.5,
+        minimum_positive=30,
+        minimum_negative=30,
+    )
+
+    assert set(metrics["status"]) == {"suppressed"}
+    assert {"false_negative", "false_positive", "fraud_prevalence"} <= set(metrics)
+    assert metrics["false_negative"].isna().all()
+
+
 def test_action_policy_requires_persistence_and_two_primary_breaches() -> None:
     batches = pd.DataFrame(
         {

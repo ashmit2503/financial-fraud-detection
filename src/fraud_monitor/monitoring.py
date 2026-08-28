@@ -21,6 +21,21 @@ HIGHER_IS_WORSE = (
     "expected_calibration_error",
 )
 PRIMARY_PERFORMANCE_METRICS = {"pr_auc", "recall"}
+SEGMENT_METRIC_COLUMNS = (
+    "segment",
+    "segment_value",
+    "window_batches",
+    "rows",
+    "positives",
+    "negatives",
+    "status",
+    "fraud_prevalence",
+    "precision",
+    "recall",
+    "false_positive",
+    "false_negative",
+    "captured_fraud_amount_rate",
+)
 
 
 @dataclass(frozen=True)
@@ -320,7 +335,18 @@ def compute_segment_metrics(
                 "negatives": negatives,
             }
             if positives < minimum_positive or negatives < minimum_negative:
-                records.append({**base_record, "status": "suppressed"})
+                records.append(
+                    {
+                        **base_record,
+                        "status": "suppressed",
+                        "fraud_prevalence": np.nan,
+                        "precision": np.nan,
+                        "recall": np.nan,
+                        "false_positive": np.nan,
+                        "false_negative": np.nan,
+                        "captured_fraud_amount_rate": np.nan,
+                    }
+                )
                 continue
 
             metrics = binary_classification_metrics(
@@ -341,7 +367,7 @@ def compute_segment_metrics(
                     "captured_fraud_amount_rate": metrics["captured_fraud_amount_rate"],
                 }
             )
-    return pd.DataFrame(records)
+    return pd.DataFrame.from_records(records, columns=SEGMENT_METRIC_COLUMNS)
 
 
 def derive_monitoring_actions(batch_metrics: pd.DataFrame) -> pd.DataFrame:

@@ -178,6 +178,9 @@ def rank_potential_drivers(
 
 
 def _top_segment(segment_records: pd.DataFrame, metric: str) -> str | None:
+    required_columns = {"status", "segment", "segment_value", metric}
+    if not required_columns.issubset(segment_records.columns):
+        return None
     reported = segment_records[segment_records["status"] == "reported"].dropna(subset=[metric])
     if reported.empty:
         return None

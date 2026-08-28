@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from fraud_monitor.diagnostics import (
+    _top_segment,
     build_investigation_records,
     compare_shap_summaries,
     rank_potential_drivers,
@@ -20,6 +21,15 @@ class _FakeBooster:
 
 class _FakeModel:
     booster_ = _FakeBooster()
+
+
+def test_top_segment_returns_none_when_no_metrics_are_reportable() -> None:
+    suppressed = pd.DataFrame(
+        [{"segment": "card4", "segment_value": "visa", "status": "suppressed"}]
+    )
+
+    assert _top_segment(suppressed, "false_negative") is None
+    assert _top_segment(pd.DataFrame(), "false_negative") is None
 
 
 def test_tree_shap_summary_is_stratified_and_compares_importance() -> None:
