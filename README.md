@@ -106,8 +106,8 @@ Run `uv run fraud-monitor <command> --help` for command-specific options.
 - The acceptance report includes PR-AUC, ROC-AUC, operating-point metrics, error rates, captured
   fraud amount, calibration diagnostics, a reliability table, review-budget curves, bootstrap
   intervals, and paired PR-AUC uncertainty against logistic regression.
-- Local file-based MLflow records parameters, hashes, fold metrics, champion metadata, and
-  evaluation artifacts.
+- Local SQLite-backed MLflow records parameters, hashes, fold metrics, champion metadata, and
+  file artifacts without requiring a remote service.
 
 This repository does not fabricate full IEEE-CIS scores. After a Kaggle run, authoritative results
 are in `training_summary.json`; use the paired interval for

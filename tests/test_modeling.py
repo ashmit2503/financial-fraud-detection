@@ -60,6 +60,27 @@ def test_lightgbm_validation_is_passed_as_eval_set(monkeypatch) -> None:
     assert eval_target is validation_target
 
 
+def test_local_mlflow_uses_sqlite_with_private_artifacts(tmp_path) -> None:
+    tracking_path = tmp_path / "private" / "mlruns"
+    expected_database = (tracking_path / "mlflow.db").resolve()
+    expected_artifacts = (tracking_path / "artifacts").resolve()
+    original_tracking_uri = modeling.mlflow.get_tracking_uri()
+
+    try:
+        modeling._configure_local_mlflow("fraud-monitor-test", tracking_path)
+        with modeling.mlflow.start_run(run_name="smoke"):
+            modeling.mlflow.log_param("backend", "sqlite")
+
+        experiment = modeling.mlflow.get_experiment_by_name("fraud-monitor-test")
+        assert modeling.mlflow.get_tracking_uri() == (f"sqlite:///{expected_database.as_posix()}")
+        assert experiment is not None
+        assert experiment.artifact_location == expected_artifacts.as_uri()
+        assert expected_artifacts.is_dir()
+    finally:
+        modeling.mlflow.end_run()
+        modeling.mlflow.set_tracking_uri(original_tracking_uri)
+
+
 def test_calibrator_selection_produces_valid_probabilities() -> None:
     raw = np.array([0.01, 0.05, 0.10, 0.30, 0.70, 0.90])
     target = np.array([0, 0, 0, 1, 1, 1])

@@ -335,6 +335,24 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _configure_local_mlflow(experiment_name: str, tracking_path: Path) -> None:
+    tracking_path.mkdir(parents=True, exist_ok=True)
+    artifact_path = (tracking_path / "artifacts").resolve()
+    artifact_path.mkdir(parents=True, exist_ok=True)
+    database_path = (tracking_path / "mlflow.db").resolve()
+    mlflow.set_tracking_uri(f"sqlite:///{database_path.as_posix()}")
+
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        experiment_id = mlflow.create_experiment(
+            experiment_name,
+            artifact_location=artifact_path.as_uri(),
+        )
+    else:
+        experiment_id = experiment.experiment_id
+    mlflow.set_experiment(experiment_id=experiment_id)
+
+
 def train_from_prepared(
     config: ProjectConfig,
     *,
@@ -519,9 +537,7 @@ def train_from_prepared(
 
     if enable_mlflow:
         tracking_path = (config.paths.artifact_dir / "private" / "mlruns").resolve()
-        tracking_path.mkdir(parents=True, exist_ok=True)
-        mlflow.set_tracking_uri(tracking_path.as_uri())
-        mlflow.set_experiment(config.name)
+        _configure_local_mlflow(config.name, tracking_path)
         with mlflow.start_run(run_name=model_version):
             mlflow.log_params(_json_safe(bundle.training_parameters))
             mlflow.log_param("data_version", data_version)
