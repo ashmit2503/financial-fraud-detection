@@ -359,7 +359,10 @@ def derive_monitoring_actions(batch_metrics: pd.DataFrame) -> pd.DataFrame:
         current_warning = drift == "warning" or performance == "warning"
         reasons: list[str] = []
         action = "continue_monitoring"
-        if primary_critical and previous_primary_critical:
+        if row.label_status == "stale":
+            action = "investigate"
+            reasons.append("Labels are stale beyond the configured maturity delay")
+        elif primary_critical and previous_primary_critical:
             action = "retrain_evaluation_required"
             reasons.append("Primary performance guardrail breached in two mature batches")
         elif drift == "critical" or performance == "critical":

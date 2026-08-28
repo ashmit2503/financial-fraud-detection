@@ -112,3 +112,20 @@ def test_action_policy_requires_persistence_and_two_primary_breaches() -> None:
         "investigate",
         "retrain_evaluation_required",
     ]
+
+
+def test_action_policy_investigates_stale_labels_without_performance_claim() -> None:
+    batch = pd.DataFrame(
+        {
+            "batch_number": [5],
+            "drift_severity": ["healthy"],
+            "performance_severity": ["unavailable"],
+            "primary_performance_critical": [False],
+            "label_status": ["stale"],
+        }
+    )
+
+    result = derive_monitoring_actions(batch)
+
+    assert result.iloc[0]["action"] == "investigate"
+    assert "stale" in result.iloc[0]["action_evidence"].lower()
