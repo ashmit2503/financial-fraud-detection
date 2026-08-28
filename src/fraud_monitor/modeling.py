@@ -246,8 +246,7 @@ def _fit_lgbm(
     fit_arguments: dict[str, Any] = {}
     if validation_features is not None and validation_target is not None:
         fit_arguments = {
-            "eval_X": validation_features,
-            "eval_y": validation_target,
+            "eval_set": [(validation_features, validation_target)],
             "eval_metric": "average_precision",
             "callbacks": [
                 lgb.early_stopping(early_stopping_rounds, verbose=False),

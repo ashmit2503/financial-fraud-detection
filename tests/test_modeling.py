@@ -1,7 +1,10 @@
 import json
+from typing import Any
 
 import numpy as np
+import pandas as pd
 
+from fraud_monitor import modeling
 from fraud_monitor.config import load_config
 from fraud_monitor.data import prepare_dataset
 from fraud_monitor.modeling import (
@@ -10,6 +13,51 @@ from fraud_monitor.modeling import (
     train_from_prepared,
 )
 from tests.factories import make_ieee_cis_tables
+
+
+def test_lightgbm_validation_is_passed_as_eval_set(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class StubLGBMClassifier:
+        def __init__(self, **parameters: Any) -> None:
+            captured["parameters"] = parameters
+
+        def fit(
+            self,
+            features: pd.DataFrame,
+            target: np.ndarray,
+            **fit_arguments: Any,
+        ) -> "StubLGBMClassifier":
+            captured["features"] = features
+            captured["target"] = target
+            captured["fit_arguments"] = fit_arguments
+            return self
+
+    monkeypatch.setattr(modeling.lgb, "LGBMClassifier", StubLGBMClassifier)
+    train_features = pd.DataFrame({"amount": [10.0, 20.0, 30.0, 40.0]})
+    train_target = np.array([0, 0, 1, 1])
+    validation_features = pd.DataFrame({"amount": [15.0, 35.0]})
+    validation_target = np.array([0, 1])
+
+    modeling._fit_lgbm(
+        {},
+        train_features,
+        train_target,
+        validation_features=validation_features,
+        validation_target=validation_target,
+        estimators=20,
+        early_stopping_rounds=5,
+        random_seed=42,
+        n_jobs=1,
+    )
+
+    fit_arguments = captured["fit_arguments"]
+    assert "eval_X" not in fit_arguments
+    assert "eval_y" not in fit_arguments
+    assert len(fit_arguments["eval_set"]) == 1
+    eval_features, eval_target = fit_arguments["eval_set"][0]
+    assert eval_features is validation_features
+    assert eval_target is validation_target
 
 
 def test_calibrator_selection_produces_valid_probabilities() -> None:
