@@ -16,6 +16,9 @@ data/interim/
 data/processed/
 artifacts/models/
 artifacts/private/
+*.joblib
+*.pkl
+*.pickle
 mlruns/
 mlflow.db
 
@@ -34,4 +37,3 @@ kaggle.json
 .vscode/
 .DS_Store
 Thumbs.db
-

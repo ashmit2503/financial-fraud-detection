@@ -1,83 +1,199 @@
 # Financial fraud detection and model monitoring
 
-An offline-first machine-learning project that uses the IEEE-CIS Fraud Detection dataset to
-demonstrate temporal validation, calibrated fraud scoring, delayed-label production replay,
-distribution monitoring, diagnosis, and retraining decisions.
+An offline-first, portfolio-grade machine-learning system that follows a fraud model from raw
+IEEE-CIS files through temporal development, calibrated deployment, delayed-label production
+replay, monitoring, diagnosis, and guarded retraining evaluation.
 
-The implementation is intentionally organized as reusable pipelines rather than a collection of
-notebooks. Full-data execution is designed for Kaggle; tests and lightweight validation use a
-deterministic synthetic fixture and do not require competition data.
+The repository keeps core logic in reusable Python modules. The Kaggle notebook is intentionally
+thin, the public Streamlit app reads only precomputed aggregates, and all tests run without
+competition data.
 
-## Development setup
+![Fraud monitoring dashboard](docs/images/dashboard-overview.png)
 
-Python 3.12 is the reference runtime.
+## Architecture
+
+```mermaid
+flowchart LR
+    A[IEEE-CIS CSVs] --> B[Validated join and manifest]
+    B --> C[Partitioned Parquet]
+    C --> D[Past-only features]
+    D --> E[Temporal folds and baselines]
+    E --> F[Calibrated LightGBM bundle]
+    F --> G[Weekly production replay]
+    G --> H[Drift, performance, and segments]
+    H --> I[TreeSHAP investigations]
+    I --> J[Guarded challenger evaluation]
+    H --> K[Aggregate-only public export]
+    K --> L[Streamlit dashboard]
+```
+
+The chronological contract uses percentages of elapsed `TransactionDT`, not row quantiles:
+
+| Elapsed range | Purpose | May fit model state? |
+|---|---|---|
+| 0–50% | Development and expanding temporal folds | Yes |
+| 50–60% | Probability calibration and fixed thresholds | Calibrator and thresholds only |
+| 60–70% | Locked acceptance and monitoring reference | No |
+| 70–100% | Weekly simulated production | No; champion stays frozen |
+| Later official test data | Unlabeled shadow stream | No |
+
+Production labels mature after two seven-day batches. Until then, performance is explicitly
+`unavailable`; missing labels never produce a false healthy state.
+
+## Quick start
+
+Python 3.12 and [uv](https://docs.astral.sh/uv/) are the reference environment.
 
 ```bash
 uv sync --extra dev --extra train --extra app
 uv run fraud-monitor show-config
 uv run pytest
+uv run streamlit run streamlit_app.py
 ```
 
-Download the four competition files into `data/raw/`:
+The committed dashboard data under `artifacts/demo/` is deterministic, synthetic, aggregated, and
+clearly labeled in the app. It demonstrates controlled healthy, degraded, stale-label, pending,
+and unlabeled-shadow states; it is not presented as an IEEE-CIS experiment result.
+
+## Full pipeline
+
+Place the four [IEEE-CIS Fraud Detection](https://www.kaggle.com/c/ieee-fraud-detection/data)
+files under `data/raw/`:
 
 - `train_transaction.csv`
 - `train_identity.csv`
 - `test_transaction.csv`
 - `test_identity.csv`
 
-Prepare validated, chronologically partitioned Parquet tables with:
+Then run:
 
 ```bash
 uv run fraud-monitor prepare
-```
-
-The command verifies schemas, join cardinality, targets, and temporal ordering before writing
-`data/processed/train.parquet`, `data/processed/test.parquet`, and a reproducibility manifest.
-Raw and processed row-level data are never committed.
-
-Train the temporal LightGBM champion, calibrator, and fixed review thresholds with:
-
-```bash
 uv run fraud-monitor train
-```
-
-For a fast end-to-end pipeline check, use `uv run fraud-monitor train --quick --no-mlflow`.
-Private model artifacts and local MLflow runs are written below `artifacts/private/` and ignored.
-
-Replay weekly production and the later unlabeled test stream with:
-
-```bash
 uv run fraud-monitor replay --bundle artifacts/private/model/model_bundle.joblib
-```
-
-The replay writes aggregate batch, feature-drift, performance, segment, TreeSHAP, investigation,
-and action tables below `artifacts/private/monitoring/`. The final two production batches remain
-label-pending by design.
-
-Manually evaluate a challenger on untouched, later mature batches with:
-
-```bash
 uv run fraud-monitor retrain-eval --bundle artifacts/private/model/model_bundle.joblib
+uv run fraud-monitor build-demo \
+  --review-budget artifacts/private/model/acceptance_review_budgets.parquet
 ```
 
-The command records paired PR-AUC and recall uncertainty plus eligible segment recall checks. It
-updates the recommendation artifact but never replaces or deploys the champion automatically.
+For a lightweight pipeline check, use `uv run fraud-monitor train --quick --no-mlflow`.
 
-Create a deterministic aggregate-only public demo with:
+Full-data execution is designed for [the Kaggle orchestration notebook](notebooks/kaggle_pipeline.ipynb).
+It discovers attached competition files, installs this package, invokes the same CLI, and leaves
+private artifacts in `/kaggle/working`.
 
-```bash
-uv run fraud-monitor build-demo --synthetic
+## CLI reference
+
+| Command | Responsibility | Principal outputs |
+|---|---|---|
+| `prepare` | Validate, join, profile, split, and convert data | Parquet tables and manifest |
+| `train` | Compare baselines, tune LightGBM, calibrate, and evaluate once | `ModelBundle`, summary, review and reliability tables |
+| `replay` | Score weekly production with delayed labels, then shadow traffic | Batch, drift, performance, segment, SHAP, and investigation tables |
+| `retrain-eval` | Train a manual challenger on earlier matured history | Paired uncertainty, segment regression checks, recommendation |
+| `build-demo` | Export only allow-listed aggregate columns | Public-safe dashboard artifacts |
+
+Run `uv run fraud-monitor <command> --help` for command-specific options.
+
+## Modeling and evaluation
+
+- Dummy prior and compact one-hot logistic regression provide auditable baselines.
+- Development uses expanding elapsed-time folds `1–2→3`, `1–3→4`, and `1–4→5`.
+- Optuna compares constrained LightGBM trials with and without fold-local class weighting.
+- Sigmoid and isotonic calibration are fitted only on the disjoint calibration period and selected
+  by Brier score, expected calibration error, and a sigmoid tie-break.
+- Thresholds for 0.5%, 1%, 2%, and 5% review capacity are frozen from calibration data. The
+  deployed default is 2%.
+- The acceptance report includes PR-AUC, ROC-AUC, operating-point metrics, error rates, captured
+  fraud amount, calibration diagnostics, a reliability table, review-budget curves, bootstrap
+  intervals, and paired PR-AUC uncertainty against logistic regression.
+- Local file-based MLflow records parameters, hashes, fold metrics, champion metadata, and
+  evaluation artifacts.
+
+This repository does not fabricate full IEEE-CIS scores. After a Kaggle run, authoritative results
+are in `training_summary.json`; use the paired interval for
+`pr_auc_improvement_over_logistic` when checking the acceptance criterion. The public demo's latest
+mature PR-AUC of 0.460 is a controlled synthetic value, not a model claim.
+
+## Monitoring and action policy
+
+The locked acceptance period is the deployed reference. One-day blocks are resampled into
+synthetic seven-day windows to derive warning (95th percentile) and critical (99th percentile)
+limits, including the allowed simultaneous feature-alert count.
+
+- Numeric drift: normalized Wasserstein distance and PSI.
+- Categorical drift: Jensen–Shannon distance and unseen-category rate.
+- Prediction drift: Jensen–Shannon score distance, score movement, and frozen-threshold capacity.
+- Performance: PR-AUC, precision, recall, error rates, captured amount, prevalence, Brier score,
+  and calibration error after labels mature.
+- Data quality: schema, duplicates, volume, missingness, and identity coverage.
+- Segments: product, card network/type, device, identity availability, purchaser email, and top
+  address regions, with two-batch pooling and suppression for insufficient support.
+
+Drift alone never replaces a model. Two consecutive mature PR-AUC or 2%-capacity recall breaches
+request challenger evaluation. Replacement is recommended only when paired bootstrap evidence
+shows a reliable PR-AUC improvement, recall is non-inferior, and no eligible segment has a reliable
+recall regression.
+
+## Leakage safeguards
+
+- Every transaction/identity join validates one-to-one cardinality and duplicate IDs.
+- Official test time must begin strictly after labeled training time.
+- Temporal partitions are disjoint and based on elapsed time.
+- Category maps, frequency maps, dropped columns, causal state, models, calibrators, thresholds,
+  and monitoring limits fit only on allowed earlier periods.
+- Entity velocity features are calculated before state is updated; equal-timestamp rows cannot
+  observe one another.
+- `TransactionID` remains available for tracing but is excluded from model features and public
+  artifacts.
+- Shadow transforms do not require a target column.
+- Model bundles persist their feature schema, causal aggregate state, calibration, thresholds,
+  source-data version, model version, and temporal cutoffs.
+- The challenger trains on earlier matured history and is evaluated on later untouched batches;
+  it is never deployed automatically.
+
+The tests include targeted leakage, category, calibration, delayed-label, drift-injection,
+segment-support, replay, retraining, demo-export, and Streamlit page checks.
+
+## Repository map
+
+```text
+src/fraud_monitor/   Data, features, modeling, monitoring, diagnostics, and contracts
+notebooks/           Thin Kaggle orchestration notebook
+configs/             Versioned runtime and simulation configuration
+tests/               Unit, integration, leakage, and dashboard smoke tests
+artifacts/demo/      Aggregate-only synthetic public dashboard data
+app_pages/           Overview, performance, drift, and diagnosis pages
+streamlit_app.py     Top-navigation Streamlit entry point
+docs/                Architecture notes, experiment handoff, and interview notes
 ```
 
-To export real replay results instead, omit `--synthetic` and optionally pass `--source-dir` and
-`--review-budget`. The exporter uses an explicit column allow-list and never copies transactions.
+## Public deployment
 
-Launch the aggregate-only dashboard with:
+For Streamlit Community Cloud, connect the public GitHub repository, choose `streamlit_app.py` as
+the entry point, and use Python 3.12. `requirements.txt` installs the package's app dependencies.
+The app needs no secrets, raw transactions, model binary, or live ML service.
 
-```bash
-uv sync --extra app
-uv run streamlit run streamlit_app.py
-```
+## Reproducibility and data hygiene
 
-The top navigation separates overview, mature-label performance, drift, and diagnosis views. The
-committed demo artifacts are synthetic controlled scenarios and are labeled as such in the app.
+- `uv.lock` pins the dependency graph; configuration and random seeds are versioned.
+- Source hashes, schemas, row counts, missingness, target prevalence, and temporal bounds are
+  captured in the preparation manifest.
+- Raw CSVs, processed rows, credentials, model binaries, caches, and MLflow runtime directories
+  are ignored by Git.
+- Repeated runs with the same files, configuration, and seed reproduce partitions and materially
+  equivalent metrics. Created-at timestamps and experiment run IDs are intentionally unique.
+
+## Limitations
+
+- `TransactionDT` is elapsed time, not a real timestamp, so outputs use elapsed days and batch IDs.
+- IEEE-CIS identities and operational segments are anonymized; this project makes no protected-
+  class fairness claim.
+- Simulated weekly batches, review capacity, and 14-day labels are portfolio assumptions, not a
+  live fraud-operations service-level agreement.
+- The champion is a strong tabular baseline, not proof of production readiness. Investigation,
+  cost modeling, reviewer feedback, governance approval, and live data contracts remain necessary.
+- FastAPI, Docker, managed orchestration, live ingestion, a remote feature store, and automatic
+  deployment are intentionally outside v1.
+
+See [MODEL_CARD.md](MODEL_CARD.md), [architecture notes](docs/architecture.md), and the
+[experiment handoff](docs/experiment_summary.md) for additional detail.
