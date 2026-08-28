@@ -139,15 +139,26 @@ PUBLIC_COLUMNS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+REVIEW_BUDGET_FILE = "acceptance_review_budgets.parquet"
+REVIEW_BUDGET_COLUMNS = (
+    "target_review_rate",
+    "review_rate",
+    "precision",
+    "recall",
+    "captured_fraud_amount_rate",
+    "threshold",
+)
+
 
 def _validate_public_table(name: str, frame: pd.DataFrame) -> pd.DataFrame:
     allowed = PUBLIC_COLUMNS[name]
-    selected = frame.loc[:, [column for column in allowed if column in frame]].copy()
+    missing = set(allowed) - set(frame)
+    if missing:
+        raise ValueError(f"Public artifact {name} is missing required columns: {sorted(missing)}")
+    selected = frame.loc[:, list(allowed)].copy()
     forbidden = [column for column in selected if "transactionid" in column.lower()]
     if forbidden:
         raise ValueError(f"Public artifact {name} contains row identifiers: {forbidden}")
-    if "batch_id" not in selected:
-        raise ValueError(f"Public artifact {name} must contain batch_id.")
     return selected
 
 
@@ -155,17 +166,20 @@ def _write_tables(
     tables: dict[str, pd.DataFrame],
     destination: Path,
     manifest: dict[str, object],
+    *,
+    extra_files: tuple[str, ...] = (),
 ) -> DemoBuildResult:
+    validated_tables = {name: _validate_public_table(name, frame) for name, frame in tables.items()}
     destination.mkdir(parents=True, exist_ok=True)
-    for name, frame in tables.items():
-        _validate_public_table(name, frame).to_parquet(destination / name, index=False)
+    for name, frame in validated_tables.items():
+        frame.to_parquet(destination / name, index=False)
     (destination / "demo_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8"
     )
-    batches = int(tables["batch_metrics.parquet"]["batch_id"].nunique())
+    batches = int(validated_tables["batch_metrics.parquet"]["batch_id"].nunique())
     return DemoBuildResult(
         output_dir=destination,
-        files=tuple(sorted([*tables, "demo_manifest.json"])),
+        files=tuple(sorted([*tables, *extra_files, "demo_manifest.json"])),
         batches=batches,
         synthetic=bool(manifest.get("synthetic", False)),
     )
@@ -185,34 +199,32 @@ def export_demo_artifacts(
         if not path.is_file():
             raise FileNotFoundError(f"Required monitoring artifact is missing: {path}")
         tables[name] = pd.read_parquet(path)
+    extra_files = (REVIEW_BUDGET_FILE,) if review_budget_path is not None else ()
+    public_budget: pd.DataFrame | None = None
+    if review_budget_path is not None:
+        if not review_budget_path.is_file():
+            raise FileNotFoundError(review_budget_path)
+        budget = pd.read_parquet(review_budget_path)
+        missing = set(REVIEW_BUDGET_COLUMNS) - set(budget)
+        if missing:
+            raise ValueError(f"Review-budget artifact is missing columns: {sorted(missing)}")
+        public_budget = budget.loc[:, REVIEW_BUDGET_COLUMNS]
     manifest = {
         "manifest_version": 1,
         "synthetic": False,
         "source": "aggregate_monitoring_export",
         "model_version": str(tables["batch_metrics.parquet"]["model_version"].iloc[-1]),
         "data_version": str(tables["batch_metrics.parquet"]["data_version"].iloc[-1]),
-        "files": sorted(PUBLIC_COLUMNS),
+        "files": sorted([*PUBLIC_COLUMNS, *extra_files]),
     }
-    result = _write_tables(tables, destination.resolve(), manifest)
-    if review_budget_path is not None:
-        if not review_budget_path.is_file():
-            raise FileNotFoundError(review_budget_path)
-        budget = pd.read_parquet(review_budget_path)
-        budget.loc[
-            :,
-            [
-                column
-                for column in (
-                    "target_review_rate",
-                    "review_rate",
-                    "precision",
-                    "recall",
-                    "captured_fraud_amount_rate",
-                    "threshold",
-                )
-                if column in budget
-            ],
-        ].to_parquet(destination / "acceptance_review_budgets.parquet", index=False)
+    result = _write_tables(
+        tables,
+        destination.resolve(),
+        manifest,
+        extra_files=extra_files,
+    )
+    if public_budget is not None:
+        public_budget.to_parquet(result.output_dir / REVIEW_BUDGET_FILE, index=False)
     return result
 
 
@@ -550,8 +562,9 @@ def generate_synthetic_demo(destination: Path) -> DemoBuildResult:
             "model_version": "m-6f9d2c1a",
             "data_version": "d-81c4e7b2",
             "description": "Aggregate-only portfolio demo; not IEEE-CIS results.",
-            "files": sorted(PUBLIC_COLUMNS),
+            "files": sorted([*PUBLIC_COLUMNS, REVIEW_BUDGET_FILE]),
         },
+        extra_files=(REVIEW_BUDGET_FILE,),
     )
     budget = pd.DataFrame(
         {
@@ -563,5 +576,5 @@ def generate_synthetic_demo(destination: Path) -> DemoBuildResult:
             "threshold": [0.52, 0.37, 0.214, 0.096],
         }
     )
-    budget.to_parquet(destination / "acceptance_review_budgets.parquet", index=False)
+    budget.to_parquet(result.output_dir / REVIEW_BUDGET_FILE, index=False)
     return result

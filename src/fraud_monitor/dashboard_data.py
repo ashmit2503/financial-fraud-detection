@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from fraud_monitor.demo import PUBLIC_COLUMNS
+from fraud_monitor.demo import PUBLIC_COLUMNS, REVIEW_BUDGET_COLUMNS, REVIEW_BUDGET_FILE
 
 
 @dataclass(frozen=True)
@@ -41,28 +41,28 @@ def load_dashboard_data(directory: str | Path) -> DashboardData:
         if not path.is_file():
             raise FileNotFoundError(f"Dashboard artifact is missing: {path}")
         frame = pd.read_parquet(path)
-        unexpected = set(frame) - set(allowed_columns)
-        if unexpected:
-            raise ValueError(f"Dashboard artifact {name} has unexpected columns: {unexpected}")
-        if "batch_id" not in frame:
-            raise ValueError(f"Dashboard artifact {name} must contain batch_id.")
+        if set(frame) != set(allowed_columns):
+            raise ValueError(
+                f"Dashboard artifact {name} must contain exactly {sorted(allowed_columns)}."
+            )
         frames[name] = frame
 
-    budget_path = root / "acceptance_review_budgets.parquet"
+    budget_path = root / REVIEW_BUDGET_FILE
+    expected_files = set(PUBLIC_COLUMNS)
+    if budget_path.is_file():
+        expected_files.add(REVIEW_BUDGET_FILE)
+    if set(manifest.get("files", ())) != expected_files:
+        raise ValueError("Dashboard manifest file inventory does not match available artifacts.")
     review_budgets = (
         pd.read_parquet(budget_path)
         if budget_path.is_file()
-        else pd.DataFrame(
-            columns=[
-                "target_review_rate",
-                "review_rate",
-                "precision",
-                "recall",
-                "captured_fraud_amount_rate",
-                "threshold",
-            ]
-        )
+        else pd.DataFrame(columns=REVIEW_BUDGET_COLUMNS)
     )
+    if budget_path.is_file() and set(review_budgets) != set(REVIEW_BUDGET_COLUMNS):
+        raise ValueError(
+            f"Dashboard artifact {REVIEW_BUDGET_FILE} must contain exactly "
+            f"{sorted(REVIEW_BUDGET_COLUMNS)}."
+        )
     return DashboardData(
         manifest=manifest,
         batches=frames["batch_metrics.parquet"],
