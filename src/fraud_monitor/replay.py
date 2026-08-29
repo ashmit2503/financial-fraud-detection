@@ -356,6 +356,11 @@ def run_replay(
     ].copy()
     recommendations["challenger_evaluated"] = False
     recommendations["retrain_recommended"] = False
+    recommendations["challenger_outcome"] = pd.Series(
+        pd.NA,
+        index=recommendations.index,
+        dtype="string",
+    )
     feature_drift = pd.DataFrame(drift_records)
     performance_metrics = pd.DataFrame(performance_records)
     segment_metrics = pd.DataFrame(segment_records)
