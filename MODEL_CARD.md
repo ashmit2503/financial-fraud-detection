@@ -39,9 +39,26 @@ inside each temporal fold.
 - A reliability table, calibration slope/intercept, Brier score, log loss, ECE, confusion counts,
   error rates, review rate, and captured fraud amount are persisted.
 
-Full-data metrics are not embedded in this repository because the competition rows and resulting
-private artifacts are not committed. `training_summary.json` from a Kaggle run is the source of
-truth. The committed Streamlit values are controlled synthetic monitoring scenarios.
+## Verified evaluation
+
+Kaggle notebook Version 5 completed on 2026-08-29 from repository commit `015c1f1` using data
+version `805c429ec247`; the resulting model version is `fe47c8a821b3`. The model has 449 features,
+including 47 native categoricals and two past-only frequency encodings. Isotonic calibration was
+selected over sigmoid on the disjoint calibration window.
+
+On the locked acceptance window, LightGBM achieved 0.5826 PR-AUC (95% bootstrap CI
+0.5638–0.6002), compared with 0.1616 for logistic regression and 0.0411 for the dummy prior. The
+paired PR-AUC improvement over logistic was 0.4210 (95% bootstrap CI 0.4026–0.4380). ROC-AUC was
+0.9080.
+
+At the frozen calibration-derived default threshold of 0.3657, acceptance precision was 0.7397,
+recall was 0.4662 (95% bootstrap CI 0.4452–0.4851), and 30.08% of labeled fraud amount was captured.
+The fixed threshold yielded a 2.59% acceptance review rate, illustrating that a calibration-window
+capacity target does not guarantee the same later-window volume. Acceptance Brier score was 0.0238
+and expected calibration error was 0.0015.
+
+Only the allow-listed aggregate monitoring export is committed. Competition rows, transaction
+identifiers, the model bundle, full training artifacts, and MLflow runtime data remain private.
 
 ## Feature and leakage controls
 
@@ -62,6 +79,11 @@ operational segments against empirical acceptance-period limits.
 
 TreeSHAP summaries are aggregate-only. Investigation records rank likely drivers and identify
 segments contributing to false negatives, false positives, and prevalence changes.
+
+The verified replay contains eight production batches and 27 official-test shadow batches. Six
+production batches have mature labels and two are pending; all shadow performance is unavailable by
+design. The policy recorded 32 investigations and three retraining-evaluation-required states. A
+challenger was not run, and replacement was not recommended automatically.
 
 ## Retraining policy
 

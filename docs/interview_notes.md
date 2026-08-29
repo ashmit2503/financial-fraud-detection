@@ -10,6 +10,8 @@
   improvement, recall non-inferiority, and segment-regression checks.
 - Shipped a public Streamlit monitor backed only by allow-listed aggregate Parquet artifacts, with
   reproducible CLI pipelines, MLflow tracking, tests, and Kaggle orchestration.
+- Verified the full IEEE-CIS lifecycle with 0.5826 locked-window PR-AUC versus 0.1616 for logistic
+  regression; the paired improvement was 0.4210 with a 95% interval of 0.4026–0.4380.
 
 ## Design decisions to explain
 

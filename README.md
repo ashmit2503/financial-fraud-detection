@@ -51,9 +51,9 @@ uv run pytest
 uv run streamlit run streamlit_app.py
 ```
 
-The committed dashboard data under `artifacts/demo/` is deterministic, synthetic, aggregated, and
-clearly labeled in the app. It demonstrates controlled healthy, degraded, stale-label, pending,
-and unlabeled-shadow states; it is not presented as an IEEE-CIS experiment result.
+The committed dashboard data under `artifacts/demo/` is the public-safe aggregate export from the
+verified full IEEE-CIS run described below. It contains no transaction identifiers, row-level
+records, model binary, or MLflow runtime data. Synthetic fixtures remain available only to tests.
 
 ## Full pipeline
 
@@ -109,10 +109,28 @@ Run `uv run fraud-monitor <command> --help` for command-specific options.
 - Local SQLite-backed MLflow records parameters, hashes, fold metrics, champion metadata, and
   file artifacts without requiring a remote service.
 
-This repository does not fabricate full IEEE-CIS scores. After a Kaggle run, authoritative results
-are in `training_summary.json`; use the paired interval for
-`pr_auc_improvement_over_logistic` when checking the acceptance criterion. The public demo's latest
-mature PR-AUC of 0.460 is a controlled synthetic value, not a model claim.
+### Verified full-data result
+
+Kaggle notebook Version 5 completed on 2026-08-29 from repository commit `015c1f1`. The run used
+data version `805c429ec247` and produced model version `fe47c8a821b3`.
+
+| Locked-acceptance measure | Result |
+|---|---:|
+| Dummy prior PR-AUC | 0.0411 |
+| Logistic regression PR-AUC | 0.1616 |
+| LightGBM PR-AUC | 0.5826 (95% bootstrap CI 0.5638–0.6002) |
+| Paired PR-AUC improvement over logistic | 0.4210 (95% bootstrap CI 0.4026–0.4380) |
+| ROC-AUC | 0.9080 |
+| Precision at the frozen default threshold | 0.7397 |
+| Recall at the frozen default threshold | 0.4662 (95% bootstrap CI 0.4452–0.4851) |
+| Captured fraud amount rate | 0.3008 |
+| Brier score / expected calibration error | 0.0238 / 0.0015 |
+
+Isotonic calibration was selected on the disjoint calibration window. The calibration-derived 2%
+capacity threshold was 0.3657; applying that frozen score threshold to the later acceptance window
+produced a 2.59% review rate. The selected LightGBM used 449 features, including 47 native
+categoricals and two past-only frequency encodings. Mean temporal-fold PR-AUC was 0.6357 across the
+three expanding folds.
 
 ## Monitoring and action policy
 
@@ -133,6 +151,12 @@ Drift alone never replaces a model. Two consecutive mature PR-AUC or 2%-capacity
 request challenger evaluation. Replacement is recommended only when paired bootstrap evidence
 shows a reliable PR-AUC improvement, recall is non-inferior, and no eligible segment has a reliable
 recall regression.
+
+The verified replay contains eight weekly production batches and 27 official-test shadow batches.
+Six production batches have mature labels, the last two remain pending under the configured delay,
+and every shadow batch correctly reports performance unavailable. Observed shifts caused 32
+`investigate` states and three `retrain_evaluation_required` states. No challenger was run or model
+replacement recommended automatically.
 
 ## Leakage safeguards
 
@@ -161,7 +185,7 @@ src/fraud_monitor/   Data, features, modeling, monitoring, diagnostics, and cont
 notebooks/           Thin Kaggle orchestration notebook
 configs/             Versioned runtime and simulation configuration
 tests/               Unit, integration, leakage, and dashboard smoke tests
-artifacts/demo/      Aggregate-only synthetic public dashboard data
+artifacts/demo/      Verified aggregate-only public dashboard data
 app_pages/           Overview, performance, drift, and diagnosis pages
 streamlit_app.py     Top-navigation Streamlit entry point
 docs/                Architecture notes, experiment handoff, and interview notes
